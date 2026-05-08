@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MBT — Model Based Testing | Platform & Design</title>
+  <link rel="stylesheet" href="/src/style.css">
+</head>
+<body>
+  <div id="app">
+
+    <header id="hdr">
+      <div class="logo">⬡ MBT</div>
+      <div class="hdr-center">
+        <h1>Model Based Testing <span class="sub-title">Platform &amp; Design Commission</span></h1>
+        <div class="hdr-sub">Hydrodynamic &amp; Aerodynamic Simulation</div>
+      </div>
+      <div class="hdr-right">
+        <div class="status-dot" id="status-dot"></div>
+        <div class="status-text" id="status-text">Awaiting Model</div>
+      </div>
+    </header>
+
+    <main id="main-layout">
+
+      <!-- LEFT: Controls -->
+      <aside id="ctrl-panel">
+        <section class="panel-section">
+          <h3>🌊 Water Environment</h3>
+          <div class="ctrl-row">
+            <label>Current Speed <span class="val" id="wc-val">5 kts</span></label>
+            <input type="range" id="water-speed" min="1" max="30" value="5" step="0.5">
+          </div>
+          <div class="ctrl-row">
+            <label>Current Heading <span class="val" id="ch-val">0°</span></label>
+            <input type="range" id="current-heading" min="-90" max="90" value="0" step="1">
+          </div>
+          <div class="ctrl-row">
+            <label>Water Depth <span class="val" id="wd-val">50 m</span></label>
+            <input type="range" id="water-depth" min="10" max="500" value="50" step="5">
+          </div>
+          <div class="ctrl-row">
+            <label>Sea State <span class="val" id="ss-val">2</span></label>
+            <input type="range" id="sea-state" min="0" max="9" value="2" step="1">
+          </div>
+        </section>
+
+        <section class="panel-section">
+          <h3>💨 Atmospheric</h3>
+          <div class="ctrl-row">
+            <label>Wind Speed <span class="val" id="ws-val">10 kts</span></label>
+            <input type="range" id="wind-speed" min="0" max="60" value="10" step="1">
+          </div>
+          <div class="ctrl-row">
+            <label>Wind Angle <span class="val" id="wa-val">0°</span></label>
+            <input type="range" id="wind-angle" min="-180" max="180" value="0" step="5">
+          </div>
+        </section>
+
+        <section class="panel-section">
+          <h3>⚓ Vessel Parameters</h3>
+          <div class="ctrl-row">
+            <label>Hull Length <span class="val" id="hl-val">80 m</span></label>
+            <input type="range" id="hull-length" min="20" max="200" value="80" step="5">
+          </div>
+          <div class="ctrl-row">
+            <label>Displacement <span class="val" id="disp-val">3200 t</span></label>
+            <input type="range" id="displacement" min="500" max="20000" value="3200" step="100">
+          </div>
+          <div class="ctrl-row">
+            <label>Draft <span class="val" id="draft-val">8 m</span></label>
+            <input type="range" id="draft" min="2" max="20" value="8" step="0.5">
+          </div>
+        </section>
+
+        <section class="panel-section">
+          <h3>▶ Simulation Control</h3>
+          <button id="btn-play" class="btn-primary">▶ Run Simulation</button>
+          <button id="btn-reset" class="btn-secondary">↺ Reset</button>
+          <div class="sim-clock">
+            <span class="clock-label">Elapsed</span>
+            <span class="clock-val" id="sim-time">T+00:00</span>
+          </div>
+          <div class="particle-toggle">
+            <label><input type="checkbox" id="tog-water" checked> Water Flow</label>
+            <label><input type="checkbox" id="tog-air" checked> Air Flow</label>
+            <label><input type="checkbox" id="tog-forces" checked> Force Vectors</label>
+            <label><input type="checkbox" id="tog-pressure" checked> Pressure Zones</label>
+          </div>
+        </section>
+      </aside>
+
+      <!-- CENTER: 3D Viewport -->
+      <div id="viewport">
+        <div id="drop-zone">
+          <div class="drop-inner">
+            <div class="drop-icon">⬡</div>
+            <p class="drop-title">Replace Model</p>
+            <p class="drop-sub">Drop a <strong>.glb</strong> file to replace the ship</p>
+            <p class="drop-or">— or —</p>
+            <label class="btn-browse" for="file-input">Browse Files</label>
+            <input type="file" id="file-input" accept=".glb,.gltf">
+            <p class="drop-hint">Accepts GLB / GLTF format</p>
+          </div>
+        </div>
+
+        <canvas id="canvas"></canvas>
+
+        <!-- HUD overlays -->
+        <div id="hud-compass">
+          <canvas id="compass-canvas" width="80" height="80"></canvas>
+          <div class="compass-label">Current Dir</div>
+        </div>
+
+        <div id="hud-legend">
+          <div class="leg-item"><span class="dot" style="background:#00ccff"></span> Water Flow</div>
+          <div class="leg-item"><span class="dot" style="background:#cce8ff;opacity:.7"></span> Air Flow</div>
+          <div class="leg-item"><span class="dot" style="background:#ff3333"></span> Drag Force</div>
+          <div class="leg-item"><span class="dot" style="background:#33ff88"></span> Lift Force</div>
+          <div class="leg-item"><span class="dot" style="background:#ffcc00"></span> Side Force</div>
+        </div>
+
+        <div id="hud-scale">
+          <div class="scale-bar"></div>
+          <div class="scale-labels"><span>0</span><span id="scale-val">100 m</span></div>
+        </div>
+
+        <!-- Recommendations modal -->
+        <div id="rec-modal" class="rec-modal rec-hidden">
+          <div class="rec-card">
+            <div class="rec-header">
+              <span class="rec-logo">⬡</span>
+              <div class="rec-title-block">
+                <h2 class="rec-title">Simulation Complete</h2>
+                <span class="rec-elapsed" id="rec-elapsed">T+01:00</span>
+              </div>
+            </div>
+            <div class="rec-score-row">
+              <div class="rec-score-label">Overall Assessment</div>
+              <div class="rec-score-badge" id="rec-score-badge">—</div>
+            </div>
+            <ul class="rec-list" id="rec-list"></ul>
+            <div class="rec-actions">
+              <button id="rec-rerun" class="btn-primary rec-btn">↺ Run Again</button>
+              <button id="rec-close" class="btn-secondary rec-btn">✕ Close</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT: Metrics -->
+      <aside id="metrics-panel">
+        <h3>📊 Live Metrics</h3>
+
+        <div class="metric-group">
+          <div class="metric-group-label">Hydrodynamic Forces</div>
+          <div class="metric">
+            <span class="m-label">Drag Force</span>
+            <span class="m-value" id="m-drag">—</span>
+            <span class="m-unit">kN</span>
+          </div>
+          <div class="metric">
+            <span class="m-label">Lift Force</span>
+            <span class="m-value" id="m-lift">—</span>
+            <span class="m-unit">kN</span>
+          </div>
+          <div class="metric">
+            <span class="m-label">Side Force</span>
+            <span class="m-value" id="m-side">—</span>
+            <span class="m-unit">kN</span>
+          </div>
+        </div>
+
+        <div class="metric-group">
+          <div class="metric-group-label">Flow Parameters</div>
+          <div class="metric">
+            <span class="m-label">Reynolds No.</span>
+            <span class="m-value" id="m-re">—</span>
+            <span class="m-unit">×10⁶</span>
+          </div>
+          <div class="metric">
+            <span class="m-label">Froude No.</span>
+            <span class="m-value" id="m-fn">—</span>
+            <span class="m-unit"></span>
+          </div>
+          <div class="metric">
+            <span class="m-label">Drag Coeff.</span>
+            <span class="m-value" id="m-cd">—</span>
+            <span class="m-unit">Cd</span>
+          </div>
+          <div class="metric">
+            <span class="m-label">Pressure Coeff.</span>
+            <span class="m-value" id="m-cp">—</span>
+            <span class="m-unit">Cp</span>
+          </div>
+        </div>
+
+        <div class="metric-group">
+          <div class="metric-group-label">Vessel Response</div>
+          <div class="metric">
+            <span class="m-label">Heel Angle</span>
+            <span class="m-value" id="m-heel">—</span>
+            <span class="m-unit">°</span>
+          </div>
+          <div class="metric">
+            <span class="m-label">Pitch Angle</span>
+            <span class="m-value" id="m-pitch">—</span>
+            <span class="m-unit">°</span>
+          </div>
+          <div class="metric">
+            <span class="m-label">Added Resistance</span>
+            <span class="m-value" id="m-aw">—</span>
+            <span class="m-unit">kN</span>
+          </div>
+        </div>
+
+        <div class="bar-group">
+          <div class="bar-item">
+            <span>Hull Stress</span>
+            <div class="bar-track"><div class="bar-fill" id="b-stress"></div></div>
+            <span class="bar-pct" id="bp-stress">0%</span>
+          </div>
+          <div class="bar-item">
+            <span>Flow Separation</span>
+            <div class="bar-track"><div class="bar-fill warn" id="b-sep"></div></div>
+            <span class="bar-pct" id="bp-sep">0%</span>
+          </div>
+          <div class="bar-item">
+            <span>Cavitation Risk</span>
+            <div class="bar-track"><div class="bar-fill danger" id="b-cav"></div></div>
+            <span class="bar-pct" id="bp-cav">0%</span>
+          </div>
+          <div class="bar-item">
+            <span>Stability Index</span>
+            <div class="bar-track"><div class="bar-fill good" id="b-stab"></div></div>
+            <span class="bar-pct" id="bp-stab">0%</span>
+          </div>
+        </div>
+
+        <div class="event-log" id="log">
+          <div class="log-hdr">Event Log</div>
+          <div class="log-entry sys">System initialised.</div>
+        </div>
+      </aside>
+
+    </main>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
